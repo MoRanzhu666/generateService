@@ -3,7 +3,6 @@ package com.lyrics;
 import com.lyrics.utils.FolderSelector;
 
 import javax.swing.*;
-import java.awt.*;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
