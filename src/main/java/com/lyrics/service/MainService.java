@@ -205,6 +205,7 @@ public class MainService {
                 "        return getById(po);\n" +
                 "    }\n" +
                 "\n" +
+                "\t@Transactional(rollbackFor = Exception.class)"+
                 "    public void batchDelete(@Valid IdsRequestDTO idsRequestDTO) {\n" +
                 "\n" +
                 "    }" +
