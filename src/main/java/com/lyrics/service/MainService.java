@@ -344,7 +344,7 @@ public class MainService {
         String poClassName = pascalBaseName + "Po";
 
         // 正确构建 namespace
-        String namespace = packageName + "." + mapperClassName;
+        String namespace = packageName + ".mapper." + mapperClassName;
 
         return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                 "<!DOCTYPE mapper PUBLIC \"-//mybatis.org//DTD Mapper 3.0//EN\" \"http://mybatis.org/dtd/mybatis-3-mapper.dtd\">\n" +
