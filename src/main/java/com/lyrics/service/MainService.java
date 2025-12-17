@@ -352,9 +352,6 @@ public class MainService {
                 "\n" +
                 "    <select id=\"search\" resultType=\"" + poPackage + "." + poClassName + "\">\n" +
                 "        SELECT * FROM " + underlineTableName + " WHERE delete_flag = 0\n" + // 使用动态 table_name
-                "        <if test=\"id != null and id != ''\">\n" +
-                "            AND id = #{id}\n" +
-                "        </if>\n" +
                 "    </select>\n" +
                 "\n" +
                 "</mapper>";
