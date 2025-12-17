@@ -96,7 +96,7 @@ public class MainService {
                 "@RestController\n" +
                 // 修改 RequestMapping 以包含前缀
                 "@RequestMapping(COMMON_APIS_V1_PREFIX + \"/" + underlinePath + "\")\n" +
-                "public class " + pascalBaseName + "Controller {\n" +
+                "public class " + baseName + "Controller {\n" +
                 "\n" +
                 "    @Autowired\n" +
                 "    private " + serviceClassName + " " + serviceVarName + ";\n" +
