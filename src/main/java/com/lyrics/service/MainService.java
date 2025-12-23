@@ -20,7 +20,7 @@ public class MainService {
     private static final String DEFAULT_MODEL_NAME = "settlement";
 
     // 存储用户输入的IdsRequestDTO包路径，或默认生成路径
-    private static String idsRequestDtoPackage = "com.circlelog.cblogisticsservice.common.dto.IdsRequestDTO"; // 默认值，会被用户输入覆盖
+    private static String idsRequestDtoPackage = "com.circlelog.cblogisticsservice.common.dto"; // 默认值，会被用户输入覆盖
 
     private static String createSaveRootDir() {
         LocalDateTime now = LocalDateTime.now();
