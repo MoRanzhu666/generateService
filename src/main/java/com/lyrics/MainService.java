@@ -1,4 +1,4 @@
-package com.lyrics.service; // 这是生成器本身的包名
+package com.lyrics; // 这是生成器本身的包名
 
 import java.io.BufferedWriter;
 import java.io.File;
