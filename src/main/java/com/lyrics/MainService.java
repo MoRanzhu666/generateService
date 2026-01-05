@@ -17,7 +17,7 @@ public class MainService {
 
     private static final String DEFAULT_PACKAGE_NAME = "com.circlelog.cblogisticsservice";
 
-    private static final String DEFAULT_MODEL_NAME = "settlement";
+    private static final String DEFAULT_MODEL_NAME = "warehouse";
 
     // 存储用户输入的IdsRequestDTO包路径，或默认生成路径
     private static String idsRequestDtoPackage = "com.circlelog.cblogisticsservice.common.dto"; // 默认值，会被用户输入覆盖
@@ -159,11 +159,14 @@ public class MainService {
         return "package " + packageName + ";\n\n" +
                 "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableName;\n" +
+                "import com.baomidou.mybatisplus.annotation.TableField;\n" +
+                "import com.fasterxml.jackson.annotation.JsonProperty;\n"+
                 "import lombok.AllArgsConstructor;\n" +
                 "import lombok.Data;\n" +
                 "import lombok.NoArgsConstructor;\n" +
                 "\n" +
                 "import java.io.Serializable;\n" +
+                "import java.math.BigDecimal;\n"+
                 "\n" +
                 "@Data\n" +
                 "@NoArgsConstructor\n" +
