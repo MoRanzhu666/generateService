@@ -160,13 +160,13 @@ public class MainService {
                 "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableName;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableField;\n" +
-                "import com.fasterxml.jackson.annotation.JsonProperty;\n"+
+                "import com.fasterxml.jackson.annotation.JsonProperty;\n" +
                 "import lombok.AllArgsConstructor;\n" +
                 "import lombok.Data;\n" +
                 "import lombok.NoArgsConstructor;\n" +
                 "\n" +
                 "import java.io.Serializable;\n" +
-                "import java.math.BigDecimal;\n"+
+                "import java.math.BigDecimal;\n" +
                 "\n" +
                 "@Data\n" +
                 "@NoArgsConstructor\n" +
@@ -532,7 +532,7 @@ public class MainService {
             String mapperXmlCode = generateMapperXmlCode(baseModulePackage, baseName, poPackage);
             // 注意：XML 文件通常不放在 Java 源码目录下，这里仅为演示如何生成内容。
             // 实际项目中，您可能需要指定不同的保存路径。
-            File xmlSaveDir = new File(DEFAULT_ROOT_SAVE_DIR, "resources" + File.separator + "mapper");
+            File xmlSaveDir = new File(DEFAULT_ROOT_SAVE_DIR, "resources" + File.separator + "mapper" + File.separator + baseModule);
             if (!xmlSaveDir.exists()) xmlSaveDir.mkdirs();
             File xmlTargetFile = new File(xmlSaveDir, mapperClassName + ".xml");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(xmlTargetFile))) {
