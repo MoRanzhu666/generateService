@@ -532,7 +532,7 @@ public class MainService {
             String mapperXmlCode = generateMapperXmlCode(baseModulePackage, baseName, poPackage);
             // 注意：XML 文件通常不放在 Java 源码目录下，这里仅为演示如何生成内容。
             // 实际项目中，您可能需要指定不同的保存路径。
-            File xmlSaveDir = new File(DEFAULT_ROOT_SAVE_DIR, "resources" + File.separator + "mapper" + File.separator + baseModule);
+            File xmlSaveDir = new File(DEFAULT_ROOT_SAVE_DIR,  "mapper" + File.separator + baseModule);
             if (!xmlSaveDir.exists()) xmlSaveDir.mkdirs();
             File xmlTargetFile = new File(xmlSaveDir, mapperClassName + ".xml");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(xmlTargetFile))) {
