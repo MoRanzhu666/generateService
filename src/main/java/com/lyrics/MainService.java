@@ -295,7 +295,7 @@ public class MainService {
                 .append("\t@Transactional\n")
                 .append("\tpublic ").append(addUpdateReqSimpleClassName).append(" addOrUpdate(").append(addUpdateReqSimpleClassName).append(" req) {\n")
                 .append("\t\tif(Utils4General.isEmpty(req)){\n")
-                .append("\t\t\tthrow new BadRequestException(\"空对象\");\n")
+                .append("\t\t\tthrow new BadRequestException(\"参数校验失败\");\n")
                 .append("\t\t}\n")
                 .append("\t\tString reqId = req.getId();\n")
                 .append("\t\t").append(poClassName).append(" po = BeanUtil.copyProperties(req, ").append(poClassName).append(".class, \"id\");\n")
