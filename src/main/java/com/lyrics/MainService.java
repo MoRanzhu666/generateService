@@ -369,6 +369,7 @@ public class MainService {
                 "\n" +
                 "    <select id=\"search\" resultType=\"" + poPackage + "." + poClassName + "\">\n" +
                 "        SELECT * FROM " + underlineTableName + " WHERE delete_flag = 0\n" +
+                "        ORDER BY last_update_time desc"+
                 "    </select>\n" +
                 "\n" +
                 "</mapper>";
