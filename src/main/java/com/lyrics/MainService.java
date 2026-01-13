@@ -311,7 +311,7 @@ public class MainService {
                 .append("\t\t}\n")
                 .append("\t\tString reqId = req.getId();\n")
                 .append("\t\t").append(poClassName).append(" po = BeanUtil.copyProperties(req, ").append(poClassName).append(".class, \"id\");\n")
-                .append("\t\tif (Utils4General.isEmpty(reqId) ||  reqId.equals(\"undefined\") || reqId.equals(\"\")) {\n")
+                .append("\t\tif (Utils4General.isEmpty(reqId) ||  reqId.equals(\"undefined\") || reqId.equals(\"null\")) {\n")
                 .append("\t\t\tlogger.info(\"执行新增操作\");\n")
                 .append("\t\t\tpo.fillSourceInfo();\n")
                 .append("\t\t\tpo.fillCreationInfo();\n")
