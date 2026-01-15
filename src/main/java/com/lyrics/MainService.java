@@ -16,13 +16,15 @@ public class MainService {
 
     private static String createSaveRootDir() {
         LocalDateTime now = LocalDateTime.now();
-        return String.format("D:\\Download\\%04d%02d%02d_%02d%02d%02d_generated_code",
+        String result = String.format("D:\\Download\\%04d%02d%02d_%02d%02d%02d_generated_code",
                 now.getYear(),
                 now.getMonthValue(),
                 now.getDayOfMonth(),
                 now.getHour(),
                 now.getMinute(),
                 now.getSecond());
+        result = result+"\\src\\main\\java";
+        return result;
     }
 
     // 命名转换工具类
@@ -428,8 +430,10 @@ public class MainService {
         if (rootPackage.isEmpty()) {
             rootPackage = DEFAULT_ROOT_PACKAGE;
         }
-        rootPackage = "src.main.java." +rootPackage;
+        String fileRoot = "src.main.java";
+        String fileRootPackage = fileRoot+ "." +rootPackage;
         System.out.println("根包名：" + rootPackage);
+        System.out.println("文件根包名：" + fileRootPackage);
 
         System.out.print("请输入模块名 (例如 base, order, warehouse，默认：" + DEFAULT_MODEL_NAME + "): ");
         String moduleName = scanner.nextLine().trim();
@@ -492,7 +496,7 @@ public class MainService {
             // 7. Mapper XML
             String mapperXmlCode = generateMapperXmlCode(mapperPackage, baseName, poPackage);
             // 在TOS项目中，XML通常放在resources/mapper目录下
-            File xmlSaveDir = new File(DEFAULT_ROOT_SAVE_DIR, "src/main/resources/mapper/" + moduleName + "/" + baseName);
+            File xmlSaveDir = new File(DEFAULT_ROOT_SAVE_DIR, "resources/mapper/" + moduleName);
             if (!xmlSaveDir.exists()) {
                 xmlSaveDir.mkdirs();
             }
