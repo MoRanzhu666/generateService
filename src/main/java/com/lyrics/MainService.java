@@ -428,6 +428,7 @@ public class MainService {
         if (rootPackage.isEmpty()) {
             rootPackage = DEFAULT_ROOT_PACKAGE;
         }
+        rootPackage = "src.main.java." +rootPackage;
         System.out.println("根包名：" + rootPackage);
 
         System.out.print("请输入模块名 (例如 base, order, warehouse，默认：" + DEFAULT_MODEL_NAME + "): ");
