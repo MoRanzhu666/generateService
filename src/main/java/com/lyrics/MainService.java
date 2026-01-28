@@ -300,7 +300,7 @@ public class MainService {
             .append("     * 新增或修改\n")
             .append("     */\n")
             .append("    @Transactional(rollbackFor = Exception.class)\n")
-            .append("    public ").append(poClassName).append(" addOrUpdate(").append(addUpdateReqSimpleClassName).append(" req) {\n")
+            .append("    public ").append(addUpdateReqSimpleClassName).append(" addOrUpdate(").append(addUpdateReqSimpleClassName).append(" req) {\n")
             .append("        logger.info(\"进入").append(serviceClassName).append(".addOrUpdate方法，req参数: {}\", req);\n")
             .append("        \n")
             .append("        // 参数校验\n")
@@ -334,7 +334,7 @@ public class MainService {
             .append("        }\n")
             .append("        \n")
             .append("        logger.info(\"保存操作完成，ID: {}\", po.getId());\n")
-            .append("        return po;\n")
+            .append("        return req;\n")
             .append("    }\n")
             .append("\n")
             .append("}");
