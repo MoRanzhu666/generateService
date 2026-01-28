@@ -160,8 +160,10 @@ public class MainService {
         return "package " + poPackage + ";\n\n" +
                 "import org.slf4j.Logger;\n" +
                 "import org.slf4j.LoggerFactory;\n" +
+                "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n"+
                 "import com.baomidou.mybatisplus.annotation.TableName;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableField;\n" +
+                "import java.math.BigDecimal;\n"+
                 "import com.baomidou.mybatisplus.annotation.TableId;\n" +
                 "import com.fasterxml.jackson.annotation.JsonProperty;\n" +
                 "import lombok.AllArgsConstructor;\n" +
@@ -175,27 +177,7 @@ public class MainService {
                 "@NoArgsConstructor\n" +
                 "@AllArgsConstructor\n" +
                 "@TableName(\"" + tableName + "\")\n" +
-                "public class " + poClassName + " implements Serializable {\n" +
-                "\n" +
-                "    private static final Logger logger = LoggerFactory.getLogger(" + poClassName + ".class);\n" +
-                "\n" +
-                "    @TableId\n" +
-                "    private String id;\n" +
-                "    \n" +
-                "    @TableField(value = \"create_time\")\n" +
-                "    private LocalDateTime createTime;\n" +
-                "    \n" +
-                "    @TableField(value = \"update_time\")\n" +
-                "    private LocalDateTime updateTime;\n" +
-                "    \n" +
-                "    @TableField(value = \"create_user\")\n" +
-                "    private String createUser;\n" +
-                "    \n" +
-                "    @TableField(value = \"update_user\")\n" +
-                "    private String updateUser;\n" +
-                "    \n" +
-                "    // 已移除deleteFlag字段\n" +
-                "    // 可在此添加表字段映射\n" +
+                "public class " + poClassName + " extends BasicDataIsolationOnlyPo implements Serializable {\n" +
                 "}\n";
     }
 
@@ -223,7 +205,7 @@ public class MainService {
                 "}\n";
     }
 
-    // 5. 生成Service类代码（调整了批量删除逻辑，改为逻辑删除）
+    // 5. 生成Service类代码（简化的逻辑删除实现）
     public static String generateServiceCode(String servicePackage, String baseName,
                                              String mapperPackage, String poPackage, String reqPackage) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
@@ -237,92 +219,125 @@ public class MainService {
 
         StringBuilder serviceCodeBuilder = new StringBuilder();
         serviceCodeBuilder.append("package ").append(servicePackage).append(";\n\n")
-                .append("import ").append(poPackage).append(".").append(poClassName).append(";\n")
-                .append("import ").append(reqPackage).append(".").append(reqClassName).append(";\n")
-                .append("import ").append(reqPackage).append(".").append(addUpdateReqSimpleClassName).append(";\n")
-                .append("import ").append(mapperPackage).append(".").append(mapperClassName).append(";\n")
-                .append("import com.baomidou.mybatisplus.core.metadata.IPage;\n")
-                .append("import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;\n")
-                .append("import org.slf4j.Logger;\n")
-                .append("import org.slf4j.LoggerFactory;\n")
-                .append("import org.springframework.beans.factory.annotation.Autowired;\n")
-                .append("import org.springframework.stereotype.Service;\n")
-                .append("import org.springframework.transaction.annotation.Transactional;\n")
-                .append("import org.springframework.util.CollectionUtils;\n")
-                .append("import org.springframework.util.StringUtils;\n")
-                .append("\n")
-                .append("import java.time.LocalDateTime;\n")
-                .append("import java.util.List;\n")
-                .append("\n")
-                .append("@Service(\"").append(serviceBeanName).append("\")\n")
-                .append("public class ").append(serviceClassName).append(" extends ServiceImpl<").append(mapperClassName).append(", ").append(poClassName).append("> {\n")
-                .append("\n")
-                .append("    private static final Logger logger = LoggerFactory.getLogger(").append(serviceClassName).append(".class);\n")
-                .append("\n")
-                .append("    @Autowired\n")
-                .append("    private ").append(mapperClassName).append(" ").append(mapperVarName).append(";\n")
-                .append("   \n")
-                .append("    public IPage<").append(poClassName).append("> search(").append(reqClassName).append(" filter) {\n")
-                .append("        logger.info(\"进入").append(serviceClassName).append(".search方法，filter参数: {}\", filter);\n")
-                .append("        // 查询时自动过滤已删除的记录（假设使用MyBatis Plus逻辑删除）\n")
-                .append("        return getBaseMapper().search(filter);\n")
-                .append("    }\n")
-                .append("\n")
-                .append("    public ").append(poClassName).append(" searchById(").append(reqClassName).append(" filter) {\n")
-                .append("        logger.info(\"进入").append(serviceClassName).append(".searchById方法，filter参数: {}\", filter);\n")
-                .append("        if (filter == null || !StringUtils.hasText(filter.getId())) {\n")
-                .append("            return null;\n")
-                .append("        }\n")
-                .append("        // 根据ID查询，MyBatis Plus会自动过滤已删除的记录\n")
-                .append("        return getById(filter.getId());\n")
-                .append("    }\n")
-                .append("\n")
-                .append("    @Transactional(rollbackFor = Exception.class)\n")
-                .append("    public void batchDelete(").append(reqClassName).append(" req) {\n")
-                .append("        logger.info(\"进入").append(serviceClassName).append(".batchDelete方法，req参数: {}\", req);\n")
-                .append("        if (req == null || CollectionUtils.isEmpty(req.getIds())) {\n")
-                .append("            logger.warn(\"批量删除参数为空，跳过处理\");\n")
-                .append("            return;\n")
-                .append("        }\n")
-                .append("        \n")
-                .append("        // 查询待删除的记录（包含已逻辑删除的记录）\n")
-                .append("        List<").append(poClassName).append("> entityList = this.lambdaQuery()\n")
-                .append("                .in(").append(poClassName).append("::getId, req.getIds())\n")
-                .append("                .list();\n")
-                .append("        logger.info(\"查询到{}条待删除记录\", entityList.size());\n")
-                .append("\n")
-                .append("        int deletedCount = 0;\n")
-                .append("        int skippedCount = 0;\n")
-                .append("        \n")
-                .append("        for (").append(poClassName).append(" entity : entityList) {\n")
-                .append("            // 检查是否已经逻辑删除\n")
-                .append("            if (isAlreadyDeleted(entity)) {\n")
-                .append("                logger.warn(\"记录ID: {} 已逻辑删除，跳过\", entity.getId());\n")
-                .append("                skippedCount++;\n")
-                .append("                continue;\n")
-                .append("            }\n")
-                .append("            \n")
-                .append("            // 业务检查\n")
-                .append("            if (handleBatchDeleteCheck(entity)) {\n")
-                .append("                logger.warn(\"记录ID: {} 跳过删除，不符合业务规则\", entity.getId());\n")
-                .append("                skippedCount++;\n")
-                .append("                continue;\n")
-                .append("            }\n")
-                .append("            \n")
-                .append("            // 执行逻辑删除\n")
-                .append("            if (logicDeleteById(entity.getId())) {\n")
-                .append("                deletedCount++;\n")
-                .append("                logger.info(\"成功逻辑删除记录ID: {}\", entity.getId());\n")
-                .append("            } else {\n")
-                .append("                logger.warn(\"逻辑删除记录ID: {} 失败\", entity.getId());\n")
-                .append("                skippedCount++;\n")
-                .append("            }\n")
-                .append("        }\n")
-                .append("        \n")
-                .append("        logger.info(\"批量删除完成，成功逻辑删除{}条记录，跳过{}条\", deletedCount, skippedCount);\n")
-                .append("    }\n")
-                .append("\n")
-                .append("}");
+            .append("import ").append(poPackage).append(".").append(poClassName).append(";\n")
+            .append("import ").append(reqPackage).append(".").append(reqClassName).append(";\n")
+            .append("import ").append(reqPackage).append(".").append(addUpdateReqSimpleClassName).append(";\n")
+            .append("import ").append(mapperPackage).append(".").append(mapperClassName).append(";\n")
+            .append("import com.baomidou.mybatisplus.core.metadata.IPage;\n")
+            .append("import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;\n")
+            .append("import org.slf4j.Logger;\n")
+            .append("import org.slf4j.LoggerFactory;\n")
+            .append("import org.springframework.beans.factory.annotation.Autowired;\n")
+            .append("import org.springframework.stereotype.Service;\n")
+            .append("import org.springframework.transaction.annotation.Transactional;\n")
+            .append("import org.springframework.util.CollectionUtils;\n")
+            .append("import org.springframework.util.StringUtils;\n")
+            .append("import org.springframework.beans.BeanUtils;\n")
+            .append("\n")
+            .append("import java.time.LocalDateTime;\n")
+            .append("import java.util.List;\n")
+            .append("\n")
+            .append("@Service(\"").append(serviceBeanName).append("\")\n")
+            .append("public class ").append(serviceClassName).append(" extends ServiceImpl<").append(mapperClassName).append(", ").append(poClassName).append("> {\n")
+            .append("\n")
+            .append("    private static final Logger logger = LoggerFactory.getLogger(").append(serviceClassName).append(".class);\n")
+            .append("\n")
+            .append("    @Autowired\n")
+            .append("    private ").append(mapperClassName).append(" ").append(mapperVarName).append(";\n")
+            .append("   \n")
+            .append("    /**\n")
+            .append("     * 分页查询\n")
+            .append("     */\n")
+            .append("    public IPage<").append(poClassName).append("> search(").append(reqClassName).append(" filter) {\n")
+            .append("        logger.info(\"进入").append(serviceClassName).append(".search方法，filter参数: {}\", filter);\n")
+            .append("        // MyBatis Plus会自动过滤deleteFlag=true的记录\n")
+            .append("        return getBaseMapper().search(filter);\n")
+            .append("    }\n")
+            .append("\n")
+            .append("    /**\n")
+            .append("     * 根据ID查询\n")
+            .append("     */\n")
+            .append("    public ").append(poClassName).append(" searchById(").append(reqClassName).append(" filter) {\n")
+            .append("        logger.info(\"进入").append(serviceClassName).append(".searchById方法，filter参数: {}\", filter);\n")
+            .append("        if (filter == null || !StringUtils.hasText(filter.getId())) {\n")
+            .append("            return null;\n")
+            .append("        }\n")
+            .append("        // MyBatis Plus会自动过滤deleteFlag=true的记录\n")
+            .append("        return getById(filter.getId());\n")
+            .append("    }\n")
+            .append("\n")
+            .append("    /**\n")
+            .append("     * 批量逻辑删除\n")
+            .append("     */\n")
+            .append("    @Transactional(rollbackFor = Exception.class)\n")
+            .append("    public boolean batchDelete(").append(reqClassName).append(" req) {\n")
+            .append("        logger.info(\"进入").append(serviceClassName).append(".batchDelete方法，req参数: {}\", req);\n")
+            .append("        if (req == null || CollectionUtils.isEmpty(req.getIds())) {\n")
+            .append("            logger.warn(\"批量删除参数为空，跳过处理\");\n")
+            .append("            return false;\n")
+            .append("        }\n")
+            .append("        \n")
+                .append("        List<GatOrderHeadPo> entityList = this.lambdaQuery()\n" +
+                        "                .in(GatOrderHeadPo::getId, req.getIds())\n" +
+                        "                .list();\n")
+                .append("        logger.info(\"查询到{}条待删除记录\", entityList.size());\n" +
+                        "\n" +
+                        "        int deletedCount = 0;\n" +
+                        "\n" +
+                        "        for (GatOrderHeadPo po : entityList) {\n" +
+                        "            po.setDeleteFlag(true);\n" +
+                        "            po.fillUpdateInfo();\n" +
+                        "            deletedCount++;\n" +
+                        "        }\n" +
+                        "         boolean result = this.updateBatchById(entityList);\n" +
+                        "        \n" +
+                        "        logger.info(\"批量删除完成，成功逻辑删除{}条记录\", deletedCount);\n")
+            .append("        return result;\n")
+            .append("    }\n")
+            .append("\n")
+            .append("\n")
+            .append("    /**\n")
+            .append("     * 新增或修改\n")
+            .append("     */\n")
+            .append("    @Transactional(rollbackFor = Exception.class)\n")
+            .append("    public ").append(poClassName).append(" addOrUpdate(").append(addUpdateReqSimpleClassName).append(" req) {\n")
+            .append("        logger.info(\"进入").append(serviceClassName).append(".addOrUpdate方法，req参数: {}\", req);\n")
+            .append("        \n")
+            .append("        // 参数校验\n")
+            .append("        if (req == null) {\n")
+            .append("            logger.error(\"参数校验失败，req为空\");\n")
+            .append("            throw new RuntimeException(\"参数不能为空\");\n")
+            .append("        }\n")
+            .append("        \n")
+            .append("        \n")
+            .append("        // 创建PO对象并复制属性\n")
+            .append("        ").append(poClassName).append(" po = new ").append(poClassName).append("();\n")
+            .append("        BeanUtils.copyProperties(req, po);\n")
+            .append("        \n")
+            .append("        if (!StringUtils.hasText(req.getId())) {\n")
+            .append("            // 新增操作\n")
+            .append("            logger.info(\"执行新增操作\");\n")
+            .append("            po.fillCreationInfo();\n")
+            .append("        } else {\n")
+            .append("            // 更新操作\n")
+            .append("            logger.info(\"执行更新操作，ID: {}\", req.getId());\n")
+            .append("            \n")
+            .append("            po.fillUpdateInfo();\n")
+            .append("            // TODO: 设置更新用户 po.setUpdateUser(currentUser);\n")
+            .append("        }\n")
+            .append("        \n")
+            .append("        // 保存数据\n")
+            .append("        boolean success = saveOrUpdate(po);\n")
+            .append("        if (!success) {\n")
+            .append("            logger.error(\"保存数据失败，ID: {}\", po.getId());\n")
+            .append("            throw new RuntimeException(\"保存数据失败\");\n")
+            .append("        }\n")
+            .append("        \n")
+            .append("        logger.info(\"保存操作完成，ID: {}\", po.getId());\n")
+            .append("        return po;\n")
+            .append("    }\n")
+            .append("\n")
+            .append("}");
 
         return serviceCodeBuilder.toString();
     }
