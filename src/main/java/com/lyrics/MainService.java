@@ -223,7 +223,7 @@ public class MainService {
                 "}\n";
     }
 
-    // 5. 生成Service类代码（调整了批量删除逻辑，改为物理删除）
+    // 5. 生成Service类代码（调整了批量删除逻辑，改为逻辑删除）
     public static String generateServiceCode(String servicePackage, String baseName,
                                              String mapperPackage, String poPackage, String reqPackage) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
@@ -264,6 +264,7 @@ public class MainService {
                 .append("   \n")
                 .append("    public IPage<").append(poClassName).append("> search(").append(reqClassName).append(" filter) {\n")
                 .append("        logger.info(\"进入").append(serviceClassName).append(".search方法，filter参数: {}\", filter);\n")
+                .append("        // 查询时自动过滤已删除的记录（假设使用MyBatis Plus逻辑删除）\n")
                 .append("        return getBaseMapper().search(filter);\n")
                 .append("    }\n")
                 .append("\n")
@@ -272,6 +273,7 @@ public class MainService {
                 .append("        if (filter == null || !StringUtils.hasText(filter.getId())) {\n")
                 .append("            return null;\n")
                 .append("        }\n")
+                .append("        // 根据ID查询，MyBatis Plus会自动过滤已删除的记录\n")
                 .append("        return getById(filter.getId());\n")
                 .append("    }\n")
                 .append("\n")
@@ -283,7 +285,7 @@ public class MainService {
                 .append("            return;\n")
                 .append("        }\n")
                 .append("        \n")
-                .append("        // 检查是否存在需要跳过的记录\n")
+                .append("        // 查询待删除的记录（包含已逻辑删除的记录）\n")
                 .append("        List<").append(poClassName).append("> entityList = this.lambdaQuery()\n")
                 .append("                .in(").append(poClassName).append("::getId, req.getIds())\n")
                 .append("                .list();\n")
@@ -293,56 +295,33 @@ public class MainService {
                 .append("        int skippedCount = 0;\n")
                 .append("        \n")
                 .append("        for (").append(poClassName).append(" entity : entityList) {\n")
+                .append("            // 检查是否已经逻辑删除\n")
+                .append("            if (isAlreadyDeleted(entity)) {\n")
+                .append("                logger.warn(\"记录ID: {} 已逻辑删除，跳过\", entity.getId());\n")
+                .append("                skippedCount++;\n")
+                .append("                continue;\n")
+                .append("            }\n")
+                .append("            \n")
+                .append("            // 业务检查\n")
                 .append("            if (handleBatchDeleteCheck(entity)) {\n")
                 .append("                logger.warn(\"记录ID: {} 跳过删除，不符合业务规则\", entity.getId());\n")
                 .append("                skippedCount++;\n")
                 .append("                continue;\n")
                 .append("            }\n")
                 .append("            \n")
-                .append("            // 执行物理删除\n")
-                .append("            if (removeById(entity.getId())) {\n")
+                .append("            // 执行逻辑删除\n")
+                .append("            if (logicDeleteById(entity.getId())) {\n")
                 .append("                deletedCount++;\n")
-                .append("                logger.info(\"成功删除记录ID: {}\", entity.getId());\n")
+                .append("                logger.info(\"成功逻辑删除记录ID: {}\", entity.getId());\n")
                 .append("            } else {\n")
-                .append("                logger.warn(\"删除记录ID: {} 失败\", entity.getId());\n")
+                .append("                logger.warn(\"逻辑删除记录ID: {} 失败\", entity.getId());\n")
                 .append("                skippedCount++;\n")
                 .append("            }\n")
                 .append("        }\n")
                 .append("        \n")
-                .append("        logger.info(\"批量删除完成，成功删除{}条记录，跳过{}条\", deletedCount, skippedCount);\n")
+                .append("        logger.info(\"批量删除完成，成功逻辑删除{}条记录，跳过{}条\", deletedCount, skippedCount);\n")
                 .append("    }\n")
                 .append("\n")
-                .append("    protected boolean handleBatchDeleteCheck(").append(poClassName).append(" entity) {\n")
-                .append("        // 默认实现不阻止任何删除\n")
-                .append("        // TODO: 在此实现特定的业务逻辑检查，返回true表示跳过删除\n")
-                .append("        return false;\n")
-                .append("    }\n")
-                .append("\n")
-                .append("    @Transactional\n")
-                .append("    public ").append(addUpdateReqSimpleClassName).append(" addOrUpdate(").append(addUpdateReqSimpleClassName).append(" req) {\n")
-                .append("        logger.info(\"进入").append(serviceClassName).append(".addOrUpdate方法，req参数: {}\", req);\n")
-                .append("        if (req == null) {\n")
-                .append("            logger.error(\"参数校验失败，req为空\");\n")
-                .append("            throw new RuntimeException(\"参数校验失败\");\n")
-                .append("        }\n")
-                .append("        ").append(poClassName).append(" po = new ").append(poClassName).append("();\n")
-                .append("        // TODO: 使用BeanUtils.copyProperties(req, po) 复制属性\n")
-                .append("        po.setId(req.getId());\n")
-                .append("        \n")
-                .append("        if (!StringUtils.hasText(req.getId())) {\n")
-                .append("            logger.info(\"执行新增操作\");\n")
-                .append("            po.setCreateTime(LocalDateTime.now());\n")
-                .append("            // TODO: 设置创建用户 po.setCreateUser(currentUser);\n")
-                .append("            // 已移除deleteFlag字段\n")
-                .append("        } else {\n")
-                .append("            logger.info(\"执行更新操作，ID: {}\", req.getId());\n")
-                .append("            po.setUpdateTime(LocalDateTime.now());\n")
-                .append("            // TODO: 设置更新用户 po.setUpdateUser(currentUser);\n")
-                .append("        }\n")
-                .append("        saveOrUpdate(po);\n")
-                .append("        logger.info(\"保存操作完成\");\n")
-                .append("        return req;\n")
-                .append("    }\n")
                 .append("}");
 
         return serviceCodeBuilder.toString();
@@ -384,6 +363,7 @@ public class MainService {
                 "    <select id=\"search\" resultType=\"" + poPackage + "." + poClassName + "\">\n" +
                 "        SELECT * FROM " + underlineTableName + " \n" +
                 "        <!-- 已移除delete_flag条件 -->\n" +
+                "        WHERE delete_flag = false\n" +
                 "        ORDER BY last_update_time DESC\n" +
                 "    </select>\n" +
                 "\n" +
