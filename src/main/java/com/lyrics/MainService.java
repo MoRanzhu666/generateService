@@ -11,7 +11,7 @@ public class MainService {
 
     // 【可自定义修改】默认保存根目录
     private static final String DEFAULT_ROOT_SAVE_DIR = createSaveRootDir();
-    private static final String DEFAULT_ROOT_PACKAGE = "com.circlelog.station";
+    private static final String DEFAULT_ROOT_PACKAGE = "com.circlelog.terminal";
     private static final String DEFAULT_MODEL_NAME = "gat";
 
     private static String createSaveRootDir() {
@@ -23,8 +23,7 @@ public class MainService {
                 now.getHour(),
                 now.getMinute(),
                 now.getSecond());
-        result = result + "\\src\\main\\java";
-        return result;
+        return result; // 只返回到生成目录，不包含src/main/java
     }
 
     // 命名转换工具类
@@ -162,7 +161,6 @@ public class MainService {
                 "import org.slf4j.Logger;\n" +
                 "import org.slf4j.LoggerFactory;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableName;\n" +
-                "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n"+
                 "import com.baomidou.mybatisplus.annotation.TableField;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableId;\n" +
                 "import com.fasterxml.jackson.annotation.JsonProperty;\n" +
@@ -177,8 +175,26 @@ public class MainService {
                 "@NoArgsConstructor\n" +
                 "@AllArgsConstructor\n" +
                 "@TableName(\"" + tableName + "\")\n" +
-                "public class " + poClassName + " extends BasicDataIsolationOnlyPo implements Serializable {\n" +
+                "public class " + poClassName + " implements Serializable {\n" +
                 "\n" +
+                "    private static final Logger logger = LoggerFactory.getLogger(" + poClassName + ".class);\n" +
+                "\n" +
+                "    @TableId\n" +
+                "    private String id;\n" +
+                "    \n" +
+                "    @TableField(value = \"create_time\")\n" +
+                "    private LocalDateTime createTime;\n" +
+                "    \n" +
+                "    @TableField(value = \"update_time\")\n" +
+                "    private LocalDateTime updateTime;\n" +
+                "    \n" +
+                "    @TableField(value = \"create_user\")\n" +
+                "    private String createUser;\n" +
+                "    \n" +
+                "    @TableField(value = \"update_user\")\n" +
+                "    private String updateUser;\n" +
+                "    \n" +
+                "    // 已移除deleteFlag字段\n" +
                 "    // 可在此添加表字段映射\n" +
                 "}\n";
     }
@@ -315,12 +331,12 @@ public class MainService {
                 .append("        \n")
                 .append("        if (!StringUtils.hasText(req.getId())) {\n")
                 .append("            logger.info(\"执行新增操作\");\n")
-                .append("            po.fillCreationInfo();\n")
+                .append("            po.setCreateTime(LocalDateTime.now());\n")
                 .append("            // TODO: 设置创建用户 po.setCreateUser(currentUser);\n")
                 .append("            // 已移除deleteFlag字段\n")
                 .append("        } else {\n")
                 .append("            logger.info(\"执行更新操作，ID: {}\", req.getId());\n")
-                .append("             po.fillUpdateInfo();\n")
+                .append("            po.setUpdateTime(LocalDateTime.now());\n")
                 .append("            // TODO: 设置更新用户 po.setUpdateUser(currentUser);\n")
                 .append("        }\n")
                 .append("        saveOrUpdate(po);\n")
@@ -374,10 +390,10 @@ public class MainService {
                 "</mapper>";
     }
 
-    // 工具方法：保存文件
-    public static void saveCodeToFile(String code, String rootSaveDir, String packageName, String fileName) throws IOException {
+    // 工具方法：保存Java文件
+    public static void saveJavaFile(String code, String rootSaveDir, String packageName, String fileName) throws IOException {
         String packagePath = packageName.replace('.', File.separatorChar);
-        File fullDir = new File(rootSaveDir, packagePath);
+        File fullDir = new File(rootSaveDir + File.separator + "src" + File.separator + "main" + File.separator + "java", packagePath);
         if (!fullDir.exists()) {
             fullDir.mkdirs();
         }
@@ -386,7 +402,21 @@ public class MainService {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(targetFile))) {
             writer.write(code);
         }
-        System.out.println("已生成：" + targetFile.getAbsolutePath());
+        System.out.println("已生成Java文件：" + targetFile.getAbsolutePath());
+    }
+
+    // 工具方法：保存资源文件（如XML）
+    public static void saveResourceFile(String code, String rootSaveDir, String relativePath, String fileName) throws IOException {
+        File fullDir = new File(rootSaveDir + File.separator + "src" + File.separator + "main" + File.separator + "resources", relativePath);
+        if (!fullDir.exists()) {
+            fullDir.mkdirs();
+        }
+        File targetFile = new File(fullDir, fileName);
+
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(targetFile))) {
+            writer.write(code);
+        }
+        System.out.println("已生成资源文件：" + targetFile.getAbsolutePath());
     }
 
     /**
@@ -422,10 +452,7 @@ public class MainService {
         if (rootPackage.isEmpty()) {
             rootPackage = DEFAULT_ROOT_PACKAGE;
         }
-        String fileRoot = "src.main.java";
-        String fileRootPackage = fileRoot + "." + rootPackage;
         System.out.println("根包名：" + rootPackage);
-        System.out.println("文件根包名：" + fileRootPackage);
 
         System.out.print("请输入模块名 (例如 base, order, warehouse，默认：" + DEFAULT_MODEL_NAME + "): ");
         String moduleName = scanner.nextLine().trim();
@@ -463,51 +490,45 @@ public class MainService {
             // 生成代码并保存
             // 1. Controller
             String controllerCode = generateControllerCode(controllerPackage, baseName, servicePackage, poPackage, reqPackage);
-            saveCodeToFile(controllerCode, DEFAULT_ROOT_SAVE_DIR, controllerPackage, pascalBaseName + "Controller.java");
+            saveJavaFile(controllerCode, DEFAULT_ROOT_SAVE_DIR, controllerPackage, pascalBaseName + "Controller.java");
 
             // 2. Req
             String reqCode = generateReqCode(reqPackage, baseName);
-            saveCodeToFile(reqCode, DEFAULT_ROOT_SAVE_DIR, reqPackage, pascalBaseName + "Req.java");
+            saveJavaFile(reqCode, DEFAULT_ROOT_SAVE_DIR, reqPackage, pascalBaseName + "Req.java");
 
             // 3. PO
             String poCode = generatePoCode(poPackage, baseName);
-            saveCodeToFile(poCode, DEFAULT_ROOT_SAVE_DIR, poPackage, pascalBaseName + "Po.java");
+            saveJavaFile(poCode, DEFAULT_ROOT_SAVE_DIR, poPackage, pascalBaseName + "Po.java");
 
             // 4. AddAndUpdateReq
             String addUpdateReqCode = generateAddUpdateReqCode(reqPackage, baseName);
-            saveCodeToFile(addUpdateReqCode, DEFAULT_ROOT_SAVE_DIR, reqPackage, addUpdateReqClassName + ".java");
+            saveJavaFile(addUpdateReqCode, DEFAULT_ROOT_SAVE_DIR, reqPackage, addUpdateReqClassName + ".java");
 
             // 5. Service
             String serviceCode = generateServiceCode(servicePackage, baseName, mapperPackage, poPackage, reqPackage);
-            saveCodeToFile(serviceCode, DEFAULT_ROOT_SAVE_DIR, servicePackage, pascalBaseName + "Service.java");
+            saveJavaFile(serviceCode, DEFAULT_ROOT_SAVE_DIR, servicePackage, pascalBaseName + "Service.java");
 
             // 6. Mapper接口
             String mapperCode = generateMapperCode(mapperPackage, baseName, poPackage, reqPackage);
-            saveCodeToFile(mapperCode, DEFAULT_ROOT_SAVE_DIR, mapperPackage, mapperClassName + ".java");
+            saveJavaFile(mapperCode, DEFAULT_ROOT_SAVE_DIR, mapperPackage, mapperClassName + ".java");
 
-            // 7. Mapper XML
+            // 7. Mapper XML - 放在resources目录下
             String mapperXmlCode = generateMapperXmlCode(mapperPackage, baseName, poPackage);
-            // 在TOS项目中，XML通常放在resources/mapper目录下
-            File xmlSaveDir = new File(DEFAULT_ROOT_SAVE_DIR, "resources/mapper/" + moduleName);
-            if (!xmlSaveDir.exists()) {
-                xmlSaveDir.mkdirs();
-            }
-            File xmlTargetFile = new File(xmlSaveDir, mapperClassName + ".xml");
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(xmlTargetFile))) {
-                writer.write(mapperXmlCode);
-            }
-            System.out.println("已生成 XML：" + xmlTargetFile.getAbsolutePath());
+            // 将XML文件放在resources/mapper/{模块名}目录下
+            saveResourceFile(mapperXmlCode, DEFAULT_ROOT_SAVE_DIR, "mapper/" + moduleName, mapperClassName + ".xml");
 
             System.out.println("\n=== 所有代码生成完成！ ===");
             System.out.println("主要调整内容：");
-            System.out.println("1. PO类移除了deleteFlag字段");
-            System.out.println("2. Service中的批量删除改为物理删除（使用removeById方法）");
-            System.out.println("3. Mapper XML移除了delete_flag条件");
-            System.out.println("4. 每个类已自动添加日志属性：private static final Logger logger = LoggerFactory.getLogger(XXX.class);");
-            System.out.println("5. 在关键方法中添加了日志记录语句");
-            System.out.println("6. 移除了IdsRequestDTO，统一使用" + pascalBaseName + "Req作为请求对象");
-            System.out.println("7. 生成的目录结构位于: " + DEFAULT_ROOT_SAVE_DIR);
-            System.out.println("8. 包结构：" + rootPackage + ".{controller|service|mapper|model}/{模块名}/{实体名}/");
+            System.out.println("1. 标准的Maven项目结构：src/main/java 和 src/main/resources");
+            System.out.println("2. PO类移除了deleteFlag字段");
+            System.out.println("3. Service中的批量删除改为物理删除（使用removeById方法）");
+            System.out.println("4. Mapper XML移除了delete_flag条件");
+            System.out.println("5. Java文件保存在: " + DEFAULT_ROOT_SAVE_DIR + "\\src\\main\\java");
+            System.out.println("6. XML文件保存在: " + DEFAULT_ROOT_SAVE_DIR + "\\src\\main\\resources\\mapper\\" + moduleName);
+            System.out.println("7. 每个类已自动添加日志属性：private static final Logger logger = LoggerFactory.getLogger(XXX.class);");
+            System.out.println("8. 在关键方法中添加了日志记录语句");
+            System.out.println("9. 移除了IdsRequestDTO，统一使用" + pascalBaseName + "Req作为请求对象");
+            System.out.println("10. 包结构：" + rootPackage + ".{controller|service|mapper|model}/{模块名}/{实体名}/");
 
         } catch (Exception e) {
             System.err.println("代码生成失败：" + e.getMessage());
