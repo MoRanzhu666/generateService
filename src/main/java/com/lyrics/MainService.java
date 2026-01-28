@@ -162,6 +162,7 @@ public class MainService {
                 "import org.slf4j.Logger;\n" +
                 "import org.slf4j.LoggerFactory;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableName;\n" +
+                "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n"+
                 "import com.baomidou.mybatisplus.annotation.TableField;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableId;\n" +
                 "import com.fasterxml.jackson.annotation.JsonProperty;\n" +
@@ -176,7 +177,7 @@ public class MainService {
                 "@NoArgsConstructor\n" +
                 "@AllArgsConstructor\n" +
                 "@TableName(\"" + tableName + "\")\n" +
-                "public class " + poClassName + " implements Serializable {\n" +
+                "public class " + poClassName + " extends BasicDataIsolationOnlyPo implements Serializable {\n" +
                 "\n" +
                 "    // 可在此添加表字段映射\n" +
                 "}\n";
