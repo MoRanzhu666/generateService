@@ -114,7 +114,7 @@ public class MainService {
                 "    }\n" +
                 "\n" +
                 "    @PostMapping(\"/addOrUpdate\")\n" +
-                "    public " + addUpdateReqSimpleClassName + " addOrUpdate(@RequestBody " + addUpdateReqSimpleClassName + " req) {\n" +
+                "    public " + addUpdateReqSimpleClassName + " addOrUpdate(@RequestBody @Valid " + addUpdateReqSimpleClassName + " req) {\n" +
                 "        logger.info(\"进入" + pascalBaseName + "Controller.addOrUpdate方法，req参数: {}\", req);\n" +
                 "        return " + serviceVarName + ".addOrUpdate(req);\n" +
                 "    }\n" +
@@ -158,20 +158,17 @@ public class MainService {
         String tableName = NameConverter.camelToUnderline(baseName);
 
         return "package " + poPackage + ";\n\n" +
-                "import org.slf4j.Logger;\n" +
-                "import org.slf4j.LoggerFactory;\n" +
-                "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n"+
-                "import com.baomidou.mybatisplus.annotation.TableName;\n" +
+               "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableField;\n" +
-                "import java.math.BigDecimal;\n"+
-                "import com.baomidou.mybatisplus.annotation.TableId;\n" +
+                "import com.baomidou.mybatisplus.annotation.TableName;\n" +
                 "import com.fasterxml.jackson.annotation.JsonProperty;\n" +
                 "import lombok.AllArgsConstructor;\n" +
                 "import lombok.Data;\n" +
                 "import lombok.NoArgsConstructor;\n" +
                 "\n" +
                 "import java.io.Serializable;\n" +
-                "import java.time.LocalDateTime;\n" +
+                "import java.math.BigDecimal;"+
+
                 "\n" +
                 "@Data\n" +
                 "@NoArgsConstructor\n" +
@@ -277,14 +274,14 @@ public class MainService {
             .append("            return false;\n")
             .append("        }\n")
             .append("        \n")
-                .append("        List<GatOrderHeadPo> entityList = this.lambdaQuery()\n" +
-                        "                .in(GatOrderHeadPo::getId, req.getIds())\n" +
+                .append("        List<"+poClassName+"> entityList = this.lambdaQuery()\n" +
+                        "                .in("+poClassName+"::getId, req.getIds())\n" +
                         "                .list();\n")
                 .append("        logger.info(\"查询到{}条待删除记录\", entityList.size());\n" +
                         "\n" +
                         "        int deletedCount = 0;\n" +
                         "\n" +
-                        "        for (GatOrderHeadPo po : entityList) {\n" +
+                        "        for ("+poClassName+" po : entityList) {\n" +
                         "            po.setDeleteFlag(true);\n" +
                         "            po.fillUpdateInfo();\n" +
                         "            deletedCount++;\n" +
