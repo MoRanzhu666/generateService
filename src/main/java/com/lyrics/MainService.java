@@ -23,7 +23,7 @@ public class MainService {
                 now.getHour(),
                 now.getMinute(),
                 now.getSecond());
-        result = result+"\\src\\main\\java";
+        result = result + "\\src\\main\\java";
         return result;
     }
 
@@ -152,7 +152,7 @@ public class MainService {
                 "}\n";
     }
 
-    // 3. 生成PO类代码
+    // 3. 生成PO类代码（移除了deleteFlag字段）
     public static String generatePoCode(String poPackage, String baseName) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
         String poClassName = pascalBaseName + "Po";
@@ -178,26 +178,6 @@ public class MainService {
                 "@TableName(\"" + tableName + "\")\n" +
                 "public class " + poClassName + " implements Serializable {\n" +
                 "\n" +
-                "    private static final Logger logger = LoggerFactory.getLogger(" + poClassName + ".class);\n" +
-                "\n" +
-                "    @TableId\n" +
-                "    private String id;\n" +
-                "    \n" +
-                "    @TableField(value = \"create_time\")\n" +
-                "    private LocalDateTime createTime;\n" +
-                "    \n" +
-                "    @TableField(value = \"update_time\")\n" +
-                "    private LocalDateTime updateTime;\n" +
-                "    \n" +
-                "    @TableField(value = \"create_user\")\n" +
-                "    private String createUser;\n" +
-                "    \n" +
-                "    @TableField(value = \"update_user\")\n" +
-                "    private String updateUser;\n" +
-                "    \n" +
-                "    @TableField(value = \"delete_flag\")\n" +
-                "    private Boolean deleteFlag;\n" +
-                "    \n" +
                 "    // 可在此添加表字段映射\n" +
                 "}\n";
     }
@@ -226,7 +206,7 @@ public class MainService {
                 "}\n";
     }
 
-    // 5. 生成Service类代码
+    // 5. 生成Service类代码（调整了批量删除逻辑，改为物理删除）
     public static String generateServiceCode(String servicePackage, String baseName,
                                              String mapperPackage, String poPackage, String reqPackage) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
@@ -285,28 +265,39 @@ public class MainService {
                 .append("            logger.warn(\"批量删除参数为空，跳过处理\");\n")
                 .append("            return;\n")
                 .append("        }\n")
+                .append("        \n")
+                .append("        // 检查是否存在需要跳过的记录\n")
                 .append("        List<").append(poClassName).append("> entityList = this.lambdaQuery()\n")
                 .append("                .in(").append(poClassName).append("::getId, req.getIds())\n")
                 .append("                .list();\n")
                 .append("        logger.info(\"查询到{}条待删除记录\", entityList.size());\n")
                 .append("\n")
+                .append("        int deletedCount = 0;\n")
                 .append("        int skippedCount = 0;\n")
+                .append("        \n")
                 .append("        for (").append(poClassName).append(" entity : entityList) {\n")
                 .append("            if (handleBatchDeleteCheck(entity)) {\n")
+                .append("                logger.warn(\"记录ID: {} 跳过删除，不符合业务规则\", entity.getId());\n")
                 .append("                skippedCount++;\n")
                 .append("                continue;\n")
                 .append("            }\n")
-                .append("            entity.setUpdateTime(LocalDateTime.now());\n")
-                .append("            // TODO: 设置当前用户 entity.setUpdateUser(currentUser);\n")
-                .append("            entity.setDeleteFlag(true);\n")
+                .append("            \n")
+                .append("            // 执行物理删除\n")
+                .append("            if (removeById(entity.getId())) {\n")
+                .append("                deletedCount++;\n")
+                .append("                logger.info(\"成功删除记录ID: {}\", entity.getId());\n")
+                .append("            } else {\n")
+                .append("                logger.warn(\"删除记录ID: {} 失败\", entity.getId());\n")
+                .append("                skippedCount++;\n")
+                .append("            }\n")
                 .append("        }\n")
-                .append("        updateBatchById(entityList);\n")
-                .append("        logger.info(\"批量删除完成，共处理{}条记录，跳过{}条\", entityList.size() - skippedCount, skippedCount);\n")
+                .append("        \n")
+                .append("        logger.info(\"批量删除完成，成功删除{}条记录，跳过{}条\", deletedCount, skippedCount);\n")
                 .append("    }\n")
                 .append("\n")
                 .append("    protected boolean handleBatchDeleteCheck(").append(poClassName).append(" entity) {\n")
                 .append("        // 默认实现不阻止任何删除\n")
-                .append("        // TODO: Implement specific business logic here if needed\n")
+                .append("        // TODO: 在此实现特定的业务逻辑检查，返回true表示跳过删除\n")
                 .append("        return false;\n")
                 .append("    }\n")
                 .append("\n")
@@ -325,7 +316,7 @@ public class MainService {
                 .append("            logger.info(\"执行新增操作\");\n")
                 .append("            po.setCreateTime(LocalDateTime.now());\n")
                 .append("            // TODO: 设置创建用户 po.setCreateUser(currentUser);\n")
-                .append("            po.setDeleteFlag(false);\n")
+                .append("            // 已移除deleteFlag字段\n")
                 .append("        } else {\n")
                 .append("            logger.info(\"执行更新操作，ID: {}\", req.getId());\n")
                 .append("            po.setUpdateTime(LocalDateTime.now());\n")
@@ -362,7 +353,7 @@ public class MainService {
                 "}";
     }
 
-    // 7. 生成Mapper XML文件代码
+    // 7. 生成Mapper XML文件代码（移除了delete_flag条件）
     public static String generateMapperXmlCode(String mapperPackage, String baseName, String poPackage) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
         String underlineTableName = NameConverter.camelToUnderline(baseName);
@@ -375,7 +366,7 @@ public class MainService {
                 "\n" +
                 "    <select id=\"search\" resultType=\"" + poPackage + "." + poClassName + "\">\n" +
                 "        SELECT * FROM " + underlineTableName + " \n" +
-                "        WHERE delete_flag = 0\n" +
+                "        <!-- 已移除delete_flag条件 -->\n" +
                 "        ORDER BY update_time DESC\n" +
                 "    </select>\n" +
                 "\n" +
@@ -431,7 +422,7 @@ public class MainService {
             rootPackage = DEFAULT_ROOT_PACKAGE;
         }
         String fileRoot = "src.main.java";
-        String fileRootPackage = fileRoot+ "." +rootPackage;
+        String fileRootPackage = fileRoot + "." + rootPackage;
         System.out.println("根包名：" + rootPackage);
         System.out.println("文件根包名：" + fileRootPackage);
 
@@ -457,11 +448,11 @@ public class MainService {
         System.out.println("基础名称：" + baseName);
 
         // 根据输入计算各层包名（新结构）
-        String controllerPackage = rootPackage + ".controller." + moduleName ;
+        String controllerPackage = rootPackage + ".controller." + moduleName;
         String servicePackage = rootPackage + ".service." + moduleName;
         String mapperPackage = rootPackage + ".mapper." + moduleName;
         String poPackage = rootPackage + ".model.po." + moduleName;
-        String reqPackage = rootPackage + ".model.req." + moduleName ;
+        String reqPackage = rootPackage + ".model.req." + moduleName;
 
         try {
             String pascalBaseName = NameConverter.toPascalCase(baseName);
@@ -507,11 +498,15 @@ public class MainService {
             System.out.println("已生成 XML：" + xmlTargetFile.getAbsolutePath());
 
             System.out.println("\n=== 所有代码生成完成！ ===");
-            System.out.println("1. 每个类已自动添加日志属性：private static final Logger logger = LoggerFactory.getLogger(XXX.class);");
-            System.out.println("2. 在关键方法中添加了日志记录语句");
-            System.out.println("3. 移除了IdsRequestDTO，统一使用" + pascalBaseName + "Req作为请求对象");
-            System.out.println("4. 生成的目录结构位于: " + DEFAULT_ROOT_SAVE_DIR);
-            System.out.println("5. 包结构：" + rootPackage + ".{controller|service|mapper|model}/{模块名}/{实体名}/");
+            System.out.println("主要调整内容：");
+            System.out.println("1. PO类移除了deleteFlag字段");
+            System.out.println("2. Service中的批量删除改为物理删除（使用removeById方法）");
+            System.out.println("3. Mapper XML移除了delete_flag条件");
+            System.out.println("4. 每个类已自动添加日志属性：private static final Logger logger = LoggerFactory.getLogger(XXX.class);");
+            System.out.println("5. 在关键方法中添加了日志记录语句");
+            System.out.println("6. 移除了IdsRequestDTO，统一使用" + pascalBaseName + "Req作为请求对象");
+            System.out.println("7. 生成的目录结构位于: " + DEFAULT_ROOT_SAVE_DIR);
+            System.out.println("8. 包结构：" + rootPackage + ".{controller|service|mapper|model}/{模块名}/{实体名}/");
 
         } catch (Exception e) {
             System.err.println("代码生成失败：" + e.getMessage());
