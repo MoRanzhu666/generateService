@@ -11,7 +11,7 @@ public class MainService {
 
     // 【可自定义修改】默认保存根目录
     private static final String DEFAULT_ROOT_SAVE_DIR = createSaveRootDir();
-    private static final String DEFAULT_ROOT_PACKAGE = "com.circlelog.terminal";
+    private static final String DEFAULT_ROOT_PACKAGE = "com.circlelog.station";
     private static final String DEFAULT_MODEL_NAME = "gat";
 
     private static String createSaveRootDir() {
