@@ -285,7 +285,7 @@ public class MainService {
                 .append("        }\n")
                 .append("        \n")
                 .append("        // 提取ID列表\n")
-                .append("        List<Long> deleteIds = entityList.stream()\n")
+                .append("        List<String> deleteIds = entityList.stream()\n")
                 .append("                .map(").append(poClassName).append("::getId)\n")
                 .append("                .collect(Collectors.toList());\n")
                 .append("        \n")
