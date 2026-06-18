@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.util.Scanner;
 
@@ -11,12 +12,12 @@ public class MainService {
 
     // 【可自定义修改】默认保存根目录
     private static final String DEFAULT_ROOT_SAVE_DIR = createSaveRootDir();
-    private static final String DEFAULT_ROOT_PACKAGE = "com.circlelog.station";
-    private static final String DEFAULT_MODEL_NAME = "gat";
+    private static final String DEFAULT_ROOT_PACKAGE = "com.lyrics.authsystemlyrics";
+    private static final String DEFAULT_MODEL_NAME = "auth";
 
     private static String createSaveRootDir() {
         LocalDateTime now = LocalDateTime.now();
-        String result = String.format("D:\\Download\\%04d%02d%02d_%02d%02d%02d_generated_code",
+        String result = String.format("C:\\Users\\lyrics\\Downloads\\%04d%02d%02d_%02d%02d%02d_generated_code",
                 now.getYear(),
                 now.getMonthValue(),
                 now.getDayOfMonth(),
@@ -51,6 +52,50 @@ public class MainService {
             }
             return camelName.substring(0, 1).toUpperCase() + camelName.substring(1);
         }
+    }
+
+    // 0. 生成BasePo基类代码（放在model包下，所有PO的父类）
+    public static String generateBasePoCode(String modelPackage, String contextPackage) {
+        return "package " + modelPackage + ";\n\n" +
+                "import " + contextPackage + ".ServiceContext;\n" +
+                "import " + contextPackage + ".ServiceContextHolder;\n" +
+                "import lombok.Data;\n" +
+                "\n" +
+                "import java.util.Date;\n" +
+                "\n" +
+                "@Data\n" +
+                "public class BasePo {\n" +
+                "    private String id;\n" +
+                "    private Date createdAt;\n" +
+                "    private Date updatedAt;\n" +
+                "    private String createdBy;\n" +
+                "    private String updatedBy;\n" +
+                "    private String createdByName;\n" +
+                "    private String updatedByName;\n" +
+                "\n" +
+                "    /**\n" +
+                "     * 填充创建信息（新增时调用）\n" +
+                "     */\n" +
+                "    public void fillCreationInfo() {\n" +
+                "        Date now = new Date();\n" +
+                "        this.createdAt = now;\n" +
+                "        this.updatedAt = now;\n" +
+                "        ServiceContext context = ServiceContextHolder.getOrInitServiceContext();\n" +
+                "        this.createdBy = context.getUserId();\n" +
+                "        this.createdByName = context.getUserName();\n" +
+                "    }\n" +
+                "\n" +
+                "    /**\n" +
+                "     * 填充更新信息（修改时调用）\n" +
+                "     */\n" +
+                "    public void fillUpdateInfo() {\n" +
+                "        this.updatedAt = new Date();\n" +
+                "        ServiceContext context = ServiceContextHolder.getOrInitServiceContext();\n" +
+                "        this.updatedBy = context.getUserId();\n" +
+                "        this.updatedByName = context.getUserName();\n" +
+                "    }\n" +
+                "\n" +
+                "}\n";
     }
 
     // 1. 生成Controller代码
@@ -152,13 +197,13 @@ public class MainService {
     }
 
     // 3. 生成PO类代码（移除了deleteFlag字段）
-    public static String generatePoCode(String poPackage, String baseName) {
+    public static String generatePoCode(String poPackage, String baseName, String modelPackage) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
         String poClassName = pascalBaseName + "Po";
         String tableName = NameConverter.camelToUnderline(baseName);
 
         return "package " + poPackage + ";\n\n" +
-                "import circlelog.jigsaw.lfs.common.model.basic.onlyid.BasicDataIsolationOnlyPo;\n" +
+                "import " + modelPackage + ".BasePo;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableField;\n" +
                 "import com.baomidou.mybatisplus.annotation.TableName;\n" +
                 "import com.fasterxml.jackson.annotation.JsonProperty;\n" +
@@ -167,14 +212,12 @@ public class MainService {
                 "import lombok.NoArgsConstructor;\n" +
                 "\n" +
                 "import java.io.Serializable;\n" +
-                "import java.math.BigDecimal;" +
-
                 "\n" +
                 "@Data\n" +
                 "@NoArgsConstructor\n" +
                 "@AllArgsConstructor\n" +
                 "@TableName(\"" + tableName + "\")\n" +
-                "public class " + poClassName + " extends BasicDataIsolationOnlyPo implements Serializable {\n" +
+                "public class " + poClassName + " extends BasePo implements Serializable {\n" +
                 "}\n";
     }
 
@@ -231,7 +274,6 @@ public class MainService {
                 .append("import org.springframework.util.StringUtils;\n")
                 .append("import org.springframework.beans.BeanUtils;\n")
                 .append("\n")
-                .append("import java.time.LocalDateTime;\n")
                 .append("import java.util.List;\n")
                 .append("\n")
                 .append("@Service(\"").append(serviceBeanName).append("\")\n")
@@ -322,9 +364,7 @@ public class MainService {
                 .append("        } else {\n")
                 .append("            // 更新操作\n")
                 .append("            logger.info(\"执行更新操作，ID: {}\", req.getId());\n")
-                .append("            \n")
                 .append("            po.fillUpdateInfo();\n")
-                .append("            // TODO: 设置更新用户 po.setUpdateUser(currentUser);\n")
                 .append("        }\n")
                 .append("        \n")
                 .append("        // 保存数据\n")
@@ -379,7 +419,7 @@ public class MainService {
                 "    <select id=\"search\" resultType=\"" + poPackage + "." + poClassName + "\">\n" +
                 "        SELECT * FROM " + underlineTableName + " \n" +
                 "        <!-- 已移除delete_flag条件 -->\n" +
-                "        ORDER BY last_update_time DESC\n" +
+                "        ORDER BY updated_at DESC\n" +
                 "    </select>\n" +
                 "\n" +
                 "</mapper>";
@@ -390,7 +430,7 @@ public class MainService {
         String packagePath = packageName.replace('.', File.separatorChar);
         File fullDir = new File(rootSaveDir + File.separator + "src" + File.separator + "main" + File.separator + "java", packagePath);
         if (!fullDir.exists()) {
-            fullDir.mkdirs();
+            Files.createDirectories(fullDir.toPath());
         }
         File targetFile = new File(fullDir, fileName);
 
@@ -404,7 +444,7 @@ public class MainService {
     public static void saveResourceFile(String code, String rootSaveDir, String relativePath, String fileName) throws IOException {
         File fullDir = new File(rootSaveDir + File.separator + "src" + File.separator + "main" + File.separator + "resources", relativePath);
         if (!fullDir.exists()) {
-            fullDir.mkdirs();
+            Files.createDirectories(fullDir.toPath());
         }
         File targetFile = new File(fullDir, fileName);
 
@@ -476,8 +516,19 @@ public class MainService {
         String mapperPackage = rootPackage + ".mapper." + moduleName;
         String poPackage = rootPackage + ".model.po." + moduleName;
         String reqPackage = rootPackage + ".model.req." + moduleName;
+        String modelPackage = rootPackage + ".model";
+        String contextPackage = rootPackage + ".common";
 
         try {
+            // 0. 生成BasePo基类（放在model包下，如果已存在则跳过）
+            File basePoFile = new File(DEFAULT_ROOT_SAVE_DIR + File.separator + "src" + File.separator + "main" + File.separator + "java",
+                    modelPackage.replace('.', File.separatorChar) + File.separator + "BasePo.java");
+            if (!basePoFile.exists()) {
+                String basePoCode = generateBasePoCode(modelPackage, contextPackage);
+                saveJavaFile(basePoCode, DEFAULT_ROOT_SAVE_DIR, modelPackage, "BasePo.java");
+            } else {
+                System.out.println("BasePo.java 已存在，跳过生成");
+            }
             String pascalBaseName = NameConverter.toPascalCase(baseName);
             String mapperClassName = pascalBaseName + "Mapper";
             String addUpdateReqClassName = pascalBaseName + "AddOrUpdateReq";
@@ -492,7 +543,7 @@ public class MainService {
             saveJavaFile(reqCode, DEFAULT_ROOT_SAVE_DIR, reqPackage, pascalBaseName + "Req.java");
 
             // 3. PO
-            String poCode = generatePoCode(poPackage, baseName);
+            String poCode = generatePoCode(poPackage, baseName, modelPackage);
             saveJavaFile(poCode, DEFAULT_ROOT_SAVE_DIR, poPackage, pascalBaseName + "Po.java");
 
             // 4. AddAndUpdateReq
@@ -514,6 +565,7 @@ public class MainService {
 
             System.out.println("\n=== 所有代码生成完成！ ===");
             System.out.println("主要调整内容：");
+            System.out.println("0. 新增BasePo基类（model包下，含fillCreationInfo/fillUpdateInfo快捷方法，仅首次生成）");
             System.out.println("1. 标准的Maven项目结构：src/main/java 和 src/main/resources");
             System.out.println("2. PO类移除了deleteFlag字段");
             System.out.println("3. Service中的批量删除改为物理删除（使用removeById方法）");
@@ -524,6 +576,7 @@ public class MainService {
             System.out.println("8. 在关键方法中添加了日志记录语句");
             System.out.println("9. 移除了IdsRequestDTO，统一使用" + pascalBaseName + "Req作为请求对象");
             System.out.println("10. 包结构：" + rootPackage + ".{controller|service|mapper|model}/{模块名}/{实体名}/");
+            System.out.println("11. BasePo.java 位置：" + modelPackage + ".BasePo（仅首次生成，后续自动跳过）");
 
         } catch (Exception e) {
             System.err.println("代码生成失败：" + e.getMessage());
