@@ -4,9 +4,21 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 
 public class MainService {
 
@@ -14,6 +26,10 @@ public class MainService {
     private static final String DEFAULT_ROOT_SAVE_DIR = createSaveRootDir();
     private static final String DEFAULT_ROOT_PACKAGE = "com.lyrics.authsystemlyrics";
     private static final String DEFAULT_MODEL_NAME = "auth";
+    private static final String DATA_SOURCE = "jdbc:mysql://192.168.88.128:3306/authSystemLyricsDB?useSSL=false&characterEncoding=utf-8&allowPublicKeyRetrieval=true";
+    private static final String DATA_SOURCE_USER_NAME = "root";
+    private static final String DATA_SOURCE_USER_PASSWORD = "root";
+
 
     private static String createSaveRootDir() {
         LocalDateTime now = LocalDateTime.now();
@@ -52,6 +68,144 @@ public class MainService {
             }
             return camelName.substring(0, 1).toUpperCase() + camelName.substring(1);
         }
+    }
+
+    // 数据库列元数据
+    static class ColumnMeta {
+        String columnName;    // 蛇形数据库列名
+        String javaName;      // 驼峰Java字段名
+        String javaType;      // 简单类名, e.g. "String", "Integer"
+        String fullJavaType;  // 全限定类名, e.g. "java.util.Date"
+
+        ColumnMeta(String columnName, String javaName, String javaType, String fullJavaType) {
+            this.columnName = columnName;
+            this.javaName = javaName;
+            this.javaType = javaType;
+            this.fullJavaType = fullJavaType;
+        }
+    }
+
+    // BasePo中已有的字段（蛇形），PO/AddOrUpdateReq不再生成这些字段
+    private static final Set<String> BASE_PO_COLUMNS = new HashSet<>(Arrays.asList(
+            "id", "created_at", "updated_at", "created_by", "updated_by", "created_by_name", "updated_by_name"
+    ));
+
+    // MySQL类型 → Java类型映射
+    private static String sqlTypeToJava(int sqlType, String typeName) {
+        if (typeName != null) {
+            String lower = typeName.toLowerCase();
+            if (lower.contains("char") || lower.contains("text") || lower.equals("enum") || lower.equals("set") || lower.equals("json")) {
+                return "String";
+            }
+            if (lower.equals("bigint")) {
+                return "Long";
+            }
+            if (lower.equals("float")) {
+                return "Float";
+            }
+            if (lower.equals("double") || lower.equals("real")) {
+                return "Double";
+            }
+            if (lower.equals("decimal") || lower.equals("numeric")) {
+                return "BigDecimal";
+            }
+            if (lower.equals("date") || lower.equals("datetime") || lower.equals("timestamp")) {
+                return "Date";
+            }
+            if (lower.equals("time")) {
+                return "Time";
+            }
+            if (lower.equals("bit") || lower.equals("boolean") || lower.equals("bool")) {
+                return "Boolean";
+            }
+            if (lower.equals("tinyint") || lower.equals("smallint") || lower.equals("mediumint") || lower.equals("int") || lower.equals("integer")) {
+                return "Integer";
+            }
+            if (lower.contains("blob") || lower.contains("binary")) {
+                return "byte[]";
+            }
+        }
+        // fallback to java.sql.Types constants
+        return switch (sqlType) {
+            case java.sql.Types.CHAR, java.sql.Types.VARCHAR, java.sql.Types.LONGVARCHAR,
+                 java.sql.Types.NCHAR, java.sql.Types.NVARCHAR, java.sql.Types.LONGNVARCHAR -> "String";
+            case java.sql.Types.TINYINT, java.sql.Types.SMALLINT, java.sql.Types.INTEGER -> "Integer";
+            case java.sql.Types.BIGINT -> "Long";
+            case java.sql.Types.FLOAT, java.sql.Types.REAL -> "Float";
+            case java.sql.Types.DOUBLE -> "Double";
+            case java.sql.Types.DECIMAL, java.sql.Types.NUMERIC -> "BigDecimal";
+            case java.sql.Types.DATE, java.sql.Types.TIMESTAMP, java.sql.Types.TIMESTAMP_WITH_TIMEZONE -> "Date";
+            case java.sql.Types.TIME, java.sql.Types.TIME_WITH_TIMEZONE -> "Time";
+            case java.sql.Types.BIT, java.sql.Types.BOOLEAN -> "Boolean";
+            case java.sql.Types.BINARY, java.sql.Types.VARBINARY, java.sql.Types.LONGVARBINARY, java.sql.Types.BLOB -> "byte[]";
+            default -> "String";
+        };
+    }
+
+    // 获取Java类型的全限定名
+    private static String getFullJavaType(String javaType) {
+        return switch (javaType) {
+            case "String" -> "java.lang.String";
+            case "Integer" -> "java.lang.Integer";
+            case "Long" -> "java.lang.Long";
+            case "Float" -> "java.lang.Float";
+            case "Double" -> "java.lang.Double";
+            case "Boolean" -> "java.lang.Boolean";
+            case "BigDecimal" -> "java.math.BigDecimal";
+            case "Date" -> "java.util.Date";
+            case "Time" -> "java.sql.Time";
+            case "byte[]" -> "byte[]";
+            default -> "java.lang.String";
+        };
+    }
+
+    // 连接数据库读取表结构
+    private static List<ColumnMeta> getTableColumns(String tableName) throws SQLException {
+        List<ColumnMeta> columns = new ArrayList<>();
+        try (Connection conn = DriverManager.getConnection(DATA_SOURCE, DATA_SOURCE_USER_NAME, DATA_SOURCE_USER_PASSWORD)) {
+            DatabaseMetaData metaData = conn.getMetaData();
+            // 获取数据库名
+            String catalog = conn.getCatalog();
+            try (ResultSet rs = metaData.getColumns(catalog, null, tableName, null)) {
+                while (rs.next()) {
+                    String colName = rs.getString("COLUMN_NAME").toLowerCase();
+                    int sqlType = rs.getInt("DATA_TYPE");
+                    String typeName = rs.getString("TYPE_NAME");
+                    String javaType = sqlTypeToJava(sqlType, typeName);
+                    String fullJavaType = getFullJavaType(javaType);
+                    String javaName = convertSnakeToCamel(colName);
+                    columns.add(new ColumnMeta(colName, javaName, javaType, fullJavaType));
+                }
+            }
+        }
+        if (columns.isEmpty()) {
+            throw new SQLException("表 " + tableName + " 不存在或无列信息，请检查表名是否正确");
+        }
+        System.out.println("成功读取表 " + tableName + "，共 " + columns.size() + " 个字段");
+        return columns;
+    }
+
+    // 过滤出非BasePo的业务字段
+    private static List<ColumnMeta> filterBusinessColumns(List<ColumnMeta> allColumns) {
+        List<ColumnMeta> result = new ArrayList<>();
+        for (ColumnMeta col : allColumns) {
+            if (!BASE_PO_COLUMNS.contains(col.columnName)) {
+                result.add(col);
+            }
+        }
+        return result;
+    }
+
+    // 收集需要额外import的类型（非java.lang的）
+    private static Set<String> collectExtraImports(List<ColumnMeta> columns) {
+        Set<String> imports = new LinkedHashSet<>();
+        for (ColumnMeta col : columns) {
+            String ft = col.fullJavaType;
+            if (ft != null && !ft.startsWith("java.lang.") && !ft.equals("byte[]")) {
+                imports.add("import " + ft + ";");
+            }
+        }
+        return imports;
     }
 
     // 0. 生成BasePo基类代码（放在model包下，所有PO的父类）
@@ -114,6 +268,7 @@ public class MainService {
                 "import " + reqPackage + "." + addUpdateReqSimpleClassName + ";\n" +
                 "import " + servicePackage + "." + serviceClassName + ";\n" +
                 "import com.baomidou.mybatisplus.core.metadata.IPage;\n" +
+                "import com.lyrics.authsystemlyrics.common.ApiResponse;\n" +
                 "import org.slf4j.Logger;\n" +
                 "import org.slf4j.LoggerFactory;\n" +
                 "import org.springframework.beans.factory.annotation.Autowired;\n" +
@@ -122,7 +277,7 @@ public class MainService {
                 "import org.springframework.web.bind.annotation.RequestMapping;\n" +
                 "import org.springframework.web.bind.annotation.RestController;\n" +
                 "\n" +
-                "import javax.validation.Valid;\n" +
+                "import jakarta.validation.Valid;\n" +
                 "\n" +
                 "@RestController\n" +
                 "@RequestMapping(\"/api/v1/" + NameConverter.camelToUnderline(baseName) + "\")\n" +
@@ -134,34 +289,35 @@ public class MainService {
                 "    private " + serviceClassName + " " + serviceVarName + ";\n" +
                 "\n" +
                 "    @PostMapping(\"/search\")\n" +
-                "    public IPage<" + poClassName + "> search(@RequestBody(required = false) " + reqClassName + " filter) {\n" +
+                "    public ApiResponse<IPage<" + poClassName + ">> search(@RequestBody(required = false) " + reqClassName + " filter) {\n" +
                 "        logger.info(\"进入" + pascalBaseName + "Controller.search方法，filter参数: {}\", filter);\n" +
                 "        if (filter == null) {\n" +
                 "            filter = new " + reqClassName + "();\n" +
                 "        }\n" +
-                "        return " + serviceVarName + ".search(filter);\n" +
+                "        return ApiResponse.success(" + serviceVarName + ".search(filter));\n" +
                 "    }\n" +
                 "\n" +
                 "    @PostMapping(\"/batchDelete\")\n" +
-                "    public void batchDelete(@RequestBody @Valid " + reqClassName + " req) {\n" +
+                "    public ApiResponse<Void> batchDelete(@RequestBody @Valid " + reqClassName + " req) {\n" +
                 "        logger.info(\"进入" + pascalBaseName + "Controller.batchDelete方法，req参数: {}\", req);\n" +
                 "        " + serviceVarName + ".batchDelete(req);\n" +
                 "        logger.info(\"批量删除操作完成\");\n" +
+                "        return ApiResponse.success(null);\n" +
                 "    }\n" +
                 "\n" +
                 "    @PostMapping(\"/searchById\")\n" +
-                "    public " + poClassName + " searchById(@RequestBody(required = false) " + reqClassName + " filter) {\n" +
+                "    public ApiResponse<" + poClassName + "> searchById(@RequestBody(required = false) " + reqClassName + " filter) {\n" +
                 "        logger.info(\"进入" + pascalBaseName + "Controller.searchById方法，filter参数: {}\", filter);\n" +
                 "        if (filter == null) {\n" +
                 "            filter = new " + reqClassName + "();\n" +
                 "        }\n" +
-                "        return " + serviceVarName + ".searchById(filter);\n" +
+                "        return ApiResponse.success(" + serviceVarName + ".searchById(filter));\n" +
                 "    }\n" +
                 "\n" +
                 "    @PostMapping(\"/addOrUpdate\")\n" +
-                "    public " + addUpdateReqSimpleClassName + " addOrUpdate(@RequestBody @Valid " + addUpdateReqSimpleClassName + " req) {\n" +
+                "    public ApiResponse<" + addUpdateReqSimpleClassName + "> addOrUpdate(@RequestBody @Valid " + addUpdateReqSimpleClassName + " req) {\n" +
                 "        logger.info(\"进入" + pascalBaseName + "Controller.addOrUpdate方法，req参数: {}\", req);\n" +
-                "        return " + serviceVarName + ".addOrUpdate(req);\n" +
+                "        return ApiResponse.success(" + serviceVarName + ".addOrUpdate(req));\n" +
                 "    }\n" +
                 "\n" +
                 "}";
@@ -196,53 +352,94 @@ public class MainService {
                 "}\n";
     }
 
-    // 3. 生成PO类代码（移除了deleteFlag字段）
-    public static String generatePoCode(String poPackage, String baseName, String modelPackage) {
+    // 3. 生成PO类代码（根据数据库列动态生成字段）
+    public static String generatePoCode(String poPackage, String baseName, String modelPackage, List<ColumnMeta> columns) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
         String poClassName = pascalBaseName + "Po";
         String tableName = NameConverter.camelToUnderline(baseName);
 
-        return "package " + poPackage + ";\n\n" +
-                "import " + modelPackage + ".BasePo;\n" +
-                "import com.baomidou.mybatisplus.annotation.TableField;\n" +
-                "import com.baomidou.mybatisplus.annotation.TableName;\n" +
-                "import com.fasterxml.jackson.annotation.JsonProperty;\n" +
-                "import lombok.AllArgsConstructor;\n" +
-                "import lombok.Data;\n" +
-                "import lombok.NoArgsConstructor;\n" +
-                "\n" +
-                "import java.io.Serializable;\n" +
-                "\n" +
-                "@Data\n" +
-                "@NoArgsConstructor\n" +
-                "@AllArgsConstructor\n" +
-                "@TableName(\"" + tableName + "\")\n" +
-                "public class " + poClassName + " extends BasePo implements Serializable {\n" +
-                "}\n";
+        // 过滤出业务字段（排除BasePo已有字段）
+        List<ColumnMeta> bizColumns = filterBusinessColumns(columns);
+        Set<String> extraImports = collectExtraImports(bizColumns);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("package ").append(poPackage).append(";\n\n");
+        sb.append("import ").append(modelPackage).append(".BasePo;\n");
+        sb.append("import com.baomidou.mybatisplus.annotation.TableField;\n");
+        sb.append("import com.baomidou.mybatisplus.annotation.TableName;\n");
+        sb.append("import lombok.AllArgsConstructor;\n");
+        sb.append("import lombok.Data;\n");
+        sb.append("import lombok.NoArgsConstructor;\n");
+        sb.append("\n");
+        sb.append("import java.io.Serializable;\n");
+        for (String imp : extraImports) {
+            sb.append(imp).append("\n");
+        }
+        sb.append("\n");
+        sb.append("@Data\n");
+        sb.append("@NoArgsConstructor\n");
+        sb.append("@AllArgsConstructor\n");
+        sb.append("@TableName(\"").append(tableName).append("\")\n");
+        sb.append("public class ").append(poClassName).append(" extends BasePo implements Serializable {\n");
+        sb.append("\n");
+        if (bizColumns.isEmpty()) {
+            sb.append("    // 该表无额外业务字段（所有字段均在BasePo中）\n");
+        } else {
+            for (ColumnMeta col : bizColumns) {
+                sb.append("    @TableField(\"").append(col.columnName).append("\")\n");
+                sb.append("    private ").append(col.javaType).append(" ").append(col.javaName).append(";\n");
+                sb.append("\n");
+            }
+        }
+        sb.append("}\n");
+        return sb.toString();
     }
 
-    // 4. 生成AddAndUpdateReq类代码
-    public static String generateAddUpdateReqCode(String reqPackage, String baseName) {
+    // 4. 生成AddAndUpdateReq类代码（根据数据库列动态生成字段）
+    public static String generateAddUpdateReqCode(String reqPackage, String baseName, List<ColumnMeta> columns) {
         String pascalBaseName = NameConverter.toPascalCase(baseName);
         String addUpdateReqClassName = pascalBaseName + "AddOrUpdateReq";
 
-        return "package " + reqPackage + ";\n\n" +
-                "import org.slf4j.Logger;\n" +
-                "import org.slf4j.LoggerFactory;\n" +
-                "import lombok.AllArgsConstructor;\n" +
-                "import lombok.Data;\n" +
-                "import lombok.NoArgsConstructor;\n" +
-                "\n" +
-                "@Data\n" +
-                "@NoArgsConstructor\n" +
-                "@AllArgsConstructor\n" +
-                "public class " + addUpdateReqClassName + " {\n" +
-                "\n" +
-                "    private static final Logger logger = LoggerFactory.getLogger(" + addUpdateReqClassName + ".class);\n" +
-                "\n" +
-                "    private String id;\n" +
-                "    // 可在此添加其他新增/修改字段\n" +
-                "}\n";
+        // 过滤出业务字段（排除BasePo已有字段，但保留id用于判断新增/修改）
+        List<ColumnMeta> bizColumns = filterBusinessColumns(columns);
+        // 再排除id（id单独手动添加）
+        List<ColumnMeta> reqColumns = new ArrayList<>();
+        for (ColumnMeta col : bizColumns) {
+            if (!"id".equals(col.columnName)) {
+                reqColumns.add(col);
+            }
+        }
+        Set<String> extraImports = collectExtraImports(reqColumns);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("package ").append(reqPackage).append(";\n\n");
+        sb.append("import org.slf4j.Logger;\n");
+        sb.append("import org.slf4j.LoggerFactory;\n");
+        sb.append("import lombok.AllArgsConstructor;\n");
+        sb.append("import lombok.Data;\n");
+        sb.append("import lombok.NoArgsConstructor;\n");
+        sb.append("\n");
+        for (String imp : extraImports) {
+            sb.append(imp).append("\n");
+        }
+        sb.append("\n");
+        sb.append("@Data\n");
+        sb.append("@NoArgsConstructor\n");
+        sb.append("@AllArgsConstructor\n");
+        sb.append("public class ").append(addUpdateReqClassName).append(" {\n");
+        sb.append("\n");
+        sb.append("    private static final Logger logger = LoggerFactory.getLogger(").append(addUpdateReqClassName).append(".class);\n");
+        sb.append("\n");
+        sb.append("    private String id;\n");
+        if (reqColumns.isEmpty()) {
+            sb.append("    // 该表无额外业务字段（所有字段均在BasePo中）\n");
+        } else {
+            for (ColumnMeta col : reqColumns) {
+                sb.append("    private ").append(col.javaType).append(" ").append(col.javaName).append(";\n");
+            }
+        }
+        sb.append("}\n");
+        return sb.toString();
     }
 
     // 5. 生成Service类代码（简化的逻辑删除实现）
@@ -275,6 +472,7 @@ public class MainService {
                 .append("import org.springframework.beans.BeanUtils;\n")
                 .append("\n")
                 .append("import java.util.List;\n")
+                .append("import java.util.stream.Collectors;\n")
                 .append("\n")
                 .append("@Service(\"").append(serviceBeanName).append("\")\n")
                 .append("public class ").append(serviceClassName).append(" extends ServiceImpl<").append(mapperClassName).append(", ").append(poClassName).append("> {\n")
@@ -520,6 +718,14 @@ public class MainService {
         String contextPackage = rootPackage + ".common";
 
         try {
+            // 提前加载MySQL驱动
+            Class.forName("com.mysql.cj.jdbc.Driver");
+
+            // 连接数据库读取表结构
+            String tableName = NameConverter.camelToUnderline(baseName);
+            System.out.println("正在连接数据库读取表 " + tableName + " 的结构...");
+            List<ColumnMeta> columns = getTableColumns(tableName);
+
             // 0. 生成BasePo基类（放在model包下，如果已存在则跳过）
             File basePoFile = new File(DEFAULT_ROOT_SAVE_DIR + File.separator + "src" + File.separator + "main" + File.separator + "java",
                     modelPackage.replace('.', File.separatorChar) + File.separator + "BasePo.java");
@@ -542,12 +748,12 @@ public class MainService {
             String reqCode = generateReqCode(reqPackage, baseName);
             saveJavaFile(reqCode, DEFAULT_ROOT_SAVE_DIR, reqPackage, pascalBaseName + "Req.java");
 
-            // 3. PO
-            String poCode = generatePoCode(poPackage, baseName, modelPackage);
+            // 3. PO（根据数据库列动态生成字段）
+            String poCode = generatePoCode(poPackage, baseName, modelPackage, columns);
             saveJavaFile(poCode, DEFAULT_ROOT_SAVE_DIR, poPackage, pascalBaseName + "Po.java");
 
-            // 4. AddAndUpdateReq
-            String addUpdateReqCode = generateAddUpdateReqCode(reqPackage, baseName);
+            // 4. AddAndUpdateReq（根据数据库列动态生成字段）
+            String addUpdateReqCode = generateAddUpdateReqCode(reqPackage, baseName, columns);
             saveJavaFile(addUpdateReqCode, DEFAULT_ROOT_SAVE_DIR, reqPackage, addUpdateReqClassName + ".java");
 
             // 5. Service
@@ -567,14 +773,14 @@ public class MainService {
             System.out.println("主要调整内容：");
             System.out.println("0. 新增BasePo基类（model包下，含fillCreationInfo/fillUpdateInfo快捷方法，仅首次生成）");
             System.out.println("1. 标准的Maven项目结构：src/main/java 和 src/main/resources");
-            System.out.println("2. PO类移除了deleteFlag字段");
-            System.out.println("3. Service中的批量删除改为物理删除（使用removeById方法）");
-            System.out.println("4. Mapper XML移除了delete_flag条件");
-            System.out.println("5. Java文件保存在: " + DEFAULT_ROOT_SAVE_DIR + "\\src\\main\\java");
-            System.out.println("6. XML文件保存在: " + DEFAULT_ROOT_SAVE_DIR + "\\src\\main\\resources\\mapper\\" + moduleName);
-            System.out.println("7. 每个类已自动添加日志属性：private static final Logger logger = LoggerFactory.getLogger(XXX.class);");
-            System.out.println("8. 在关键方法中添加了日志记录语句");
-            System.out.println("9. 移除了IdsRequestDTO，统一使用" + pascalBaseName + "Req作为请求对象");
+            System.out.println("2. 连接数据库读取表 " + tableName + " 的结构，自动生成PO和AddOrUpdateReq字段");
+            System.out.println("3. PO字段根据数据库列自动生成（排除BasePo已有字段），带@TableField注解");
+            System.out.println("4. AddOrUpdateReq字段根据数据库列自动生成（id + 业务字段）");
+            System.out.println("5. Service中的批量删除改为物理删除（使用removeById方法）");
+            System.out.println("6. Mapper XML ORDER BY updated_at DESC");
+            System.out.println("7. Java文件保存在: " + DEFAULT_ROOT_SAVE_DIR + "\\src\\main\\java");
+            System.out.println("8. XML文件保存在: " + DEFAULT_ROOT_SAVE_DIR + "\\src\\main\\resources\\mapper\\" + moduleName);
+            System.out.println("9. 每个类已自动添加日志属性");
             System.out.println("10. 包结构：" + rootPackage + ".{controller|service|mapper|model}/{模块名}/{实体名}/");
             System.out.println("11. BasePo.java 位置：" + modelPackage + ".BasePo（仅首次生成，后续自动跳过）");
 
